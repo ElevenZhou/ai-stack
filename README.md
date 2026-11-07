@@ -45,6 +45,8 @@ curl -fsSL https://cdn.jsdelivr.net/gh/ElevenZhou/ai-stack@main/ai-stack.sh -o ~
 bash ~/ai-stack.sh
 ```
 
+> jsDelivr 对 `@main` 有约 12 小时缓存，可能拿到旧版本。想立刻用最新版，改用 tag：`@v1.1.2`，或干脆用上面的 raw 地址。
+
 国内网络建议加 `--cn`（Homebrew 走清华镜像）：
 
 ```bash
