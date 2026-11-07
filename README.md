@@ -88,6 +88,33 @@ bash ai-stack.sh --dry-run
 - **不改你的数据**：覆盖的只是 `/Applications` 里的 App 本体，登录状态、配置、聊天记录在 `~/Library`，不会被删。
 - **关闭匿名统计**：`HOMEBREW_NO_ANALYTICS=1`。
 
+### 逐项判定逻辑
+
+每次运行，对清单里的每一项都按下面的顺序判断，**不会无脑重装**：
+
+| 当前状态 | 动作 | 结果标记 |
+|---|---|---|
+| 没装（brew 里查不到） | `brew install --cask --force` / `brew install` | `已安装` |
+| 已装 + brew 索引里有新版 | `brew upgrade` | `已更新` |
+| 已装 + 已是最新 | **跳过**，不做任何事 | `已是最新` |
+| 已装但无法判断（如 npm 条目） | 先查线上版本，相同则跳过，不同才装 | `已是最新` / `已更新` |
+| 主来源失败（如 Claude Code 的 cask） | 自动改用 fallback（npm） | `已安装` / `已更新` |
+
+判定顺序（脚本实际执行的步骤）：
+
+1. `brew update` 刷新本地索引（`--no-update` 或离线时跳过/失败则沿用旧索引）；
+2. 一次性执行 `brew outdated --cask --greedy` / `--formula` 得到「可更新」名单；
+3. 逐项比对名单：在名单里 → 升级，不在 → 视为已是最新并跳过；
+4. npm 类条目额外执行一次 `npm view <包> version` 对比，相同就跳过。
+
+几个需要知道的边界：
+
+- **判定依据是 Homebrew 本地索引**。如果 `brew update` 失败（断网、镜像不可达），索引是旧的，可能把「其实有新版」误报成 `已是最新`。日志里会有 `brew update 失败` 的提示，重跑一次即可。
+- **自带自动更新的 App**（Chrome、VS Code、Cursor 等）默认靠 `--greedy` 判定；加了 `--no-greedy` 就会被当作已是最新而跳过，这是有意的省时选项。
+- **手动装过的同名 App**（不是 brew 装的）brew 查不到，会被视为「没装」，首次用 `--force` 接管一次；之后就走正常升级判断了。
+- `--dry-run` 会走同一套判断，只打印「将安装 / 将升级 / 已是最新」，不改系统。
+
+
 ---
 
 ## 清单（44 项）
@@ -273,7 +300,7 @@ AI 不需要解析中文表格，直接读 JSON：
 ```json
 {
   "script": "ai-stack",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "macos": "26.6.2",
   "arch": "arm64",
   "host": "MacBook-Air.local",

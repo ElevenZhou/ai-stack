@@ -48,7 +48,7 @@
 ```json
 {
   "script": "ai-stack",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "macos": "26.6.2",
   "arch": "arm64",
   "host": "MacBook-Air.local",
@@ -149,6 +149,21 @@ PY
 ```bash
 ./ai-stack.sh --no-recommend      # 或去掉 --no-recommend 连推荐项一起
 ```
+
+### C2. 更新判定（回答「会不会重复装」）
+
+每项都会先判断，再决定动作：
+
+| 状态 | 动作 |
+|---|---|
+| brew 里查不到 | 安装 |
+| 已装且 `brew outdated` 名单里有它 | `brew upgrade` |
+| 已装且不在名单里 | **跳过**（`已是最新`） |
+| npm 类条目 | 先 `npm view <pkg> version`，相同则跳过 |
+
+因此重复运行是安全的、幂等的：只有「缺的」和「旧的」会被改动。
+
+两个会让判断失准的开关：`--no-update`（不刷新索引）和 `--no-greedy`（自带自动更新的 App 不参与判断）。
 
 ### D. 「新机器初始化」
 

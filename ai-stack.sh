@@ -22,7 +22,7 @@
 #
 set -o pipefail
 
-SCRIPT_VERSION="1.1.1"
+SCRIPT_VERSION="1.1.2"
 
 # ---------------------------------------------------------------------------
 # 默认参数
@@ -578,6 +578,7 @@ process_formula() {
 
 process_npm() {
   local pkg="$1" before="$2"
+  local latest=""
 
   if ! command -v npm >/dev/null 2>&1; then
     if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -593,8 +594,22 @@ process_npm() {
     hash -r 2>/dev/null || true
   fi
 
+  # 先查询线上最新版本：当前已是最新就直接跳过，不再跑一遍安装
+  [[ -z "$before" ]] && before="$(version_of npm "$pkg")"
+  latest="$(npm view --fetch-retries=1 --fetch-timeout=20000 "$pkg" version 2>/dev/null | tail -1)"
+  latest="$(printf '%s' "$latest" | tr -d '[:space:]')"
+
+  if [[ -n "$before" && -n "$latest" && "$before" == "$latest" ]]; then
+    RESULT_STATUS="current"
+    return 0
+  fi
+
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    info "将执行：npm install -g $pkg@latest"
+    if [[ -n "$before" && -n "$latest" ]]; then
+      info "将升级：npm install -g $pkg@latest（${before} → ${latest}）"
+    else
+      info "将执行：npm install -g $pkg@latest"
+    fi
     RESULT_STATUS="dry"
     return 0
   fi
