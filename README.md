@@ -1,82 +1,124 @@
 # AI 工具栈 · macOS 一键安装 / 更新
 
-一个可重复运行的 Shell 脚本：**没装的自动装，装了的自动升级到最新版**。首次运行会自动安装 Homebrew；之后每次运行只做检查和升级。
+一个 **单文件、可自举** 的 Shell 脚本：新 Mac 不用预先装 Homebrew、Node 或任何东西，跑一次就把 AI 工具装齐；以后重复跑就是检查并升级到最新版。
 
-- 主脚本：`ai-stack.sh`
+- 主脚本：`ai-stack.sh`（Bash 3.2 兼容，macOS 自带 bash 就能跑）
 - 双击入口：`一键安装更新AI工具.command`
-- 日志：`~/Library/Logs/ai-stack/run-*.log`
+- AI 助手说明：[`AGENTS.md`](AGENTS.md)
+- 日志：`~/Library/Logs/ai-stack/run-*.log`（`latest.log` 指向最近一次）
+
+```bash
+# 新 Mac 一条命令（国内网络）
+curl -fsSL https://raw.githubusercontent.com/ElevenZhou/ai-stack/main/ai-stack.sh -o ~/ai-stack.sh \
+  && bash ~/ai-stack.sh --cn --no-claude
+```
+
+---
+
+## 目录
+
+- [快速开始](#快速开始)
+- [它会做什么](#它会做什么)
+- [清单（44 项）](#清单44-项)
+- [参数说明](#参数说明)
+- [典型场景](#典型场景)
+- [给 AI 助手用](#给-ai-助手用)
+- [常见问题](#常见问题)
+- [卸载 / 定制](#卸载--定制)
+- [开发](#开发)
+
+---
 
 ## 快速开始
 
-### 在新 Mac 上第一次安装
-
-脚本是单文件、可自举的：**新电脑不需要先装 Homebrew、Node 或别的工具**，它会自己装。
-
-三种拿到脚本的方式，任选一种：
-
-1. **拷贝整个文件夹**（AirDrop / U 盘 / iCloud）→ 双击 `一键安装更新AI工具.command`。
-2. **只拷 `ai-stack.sh` 一个文件**→ 放到任意目录，终端里 `bash ai-stack.sh`。
-3. **有下载地址时**（自己的 GitHub / 内网服务器）：
+### 方式一：新 Mac，一条命令
 
 ```bash
-curl -fsSL "<脚本地址>" -o ~/ai-stack.sh && bash ~/ai-stack.sh --cn --no-claude
+curl -fsSL https://raw.githubusercontent.com/ElevenZhou/ai-stack/main/ai-stack.sh -o ~/ai-stack.sh
+bash ~/ai-stack.sh
 ```
 
-> 不建议用 `curl ... | bash` 直接管道执行：首次安装 Homebrew 需要输入管理员密码，管道会让脚本拿不到终端输入。
-
-首次运行会：
-
-1. 检查 Xcode Command Line Tools（缺的话会弹出安装窗口，装完再跑一次脚本）；
-2. 安装 Homebrew（需要输入一次管理员密码）；
-3. 安装/更新全部工具。
-
-### 方式一：双击
-
-双击 `一键安装更新AI工具.command`。
-
-### 方式二：终端
+如果 `raw.githubusercontent.com` 打不开，用 jsDelivr 镜像（国内一般可达）：
 
 ```bash
-cd ~/Documents/本地管理/AI工具一键安装
-chmod +x ai-stack.sh
+curl -fsSL https://cdn.jsdelivr.net/gh/ElevenZhou/ai-stack@main/ai-stack.sh -o ~/ai-stack.sh
+bash ~/ai-stack.sh
+```
+
+国内网络建议加 `--cn`（Homebrew 走清华镜像）：
+
+```bash
+bash ~/ai-stack.sh --cn
+```
+
+> ⚠️ 不要用 `curl ... | bash` 管道执行。首次安装 Homebrew 要输入管理员密码，管道会让脚本拿不到终端输入。
+
+### 方式二：拷贝整个文件夹
+
+AirDrop / U 盘 / iCloud 把 `AI工具一键安装` 文件夹传过去，双击 `一键安装更新AI工具.command`。
+
+### 方式三：Git clone
+
+```bash
+git clone https://github.com/ElevenZhou/ai-stack.git
+cd ai-stack
 ./ai-stack.sh
 ```
 
-> 第一次建议先预览，看看会装什么：
->
-> ```bash
-> ./ai-stack.sh --dry-run
-> ```
+### 首次运行会发生什么
 
-## 清单
+1. 检查 Xcode Command Line Tools；缺了会弹出安装窗口，**装完再跑一次脚本**；
+2. 自动安装 Homebrew（需要输入一次管理员密码，之后不再需要）；
+3. 按清单安装/更新，失败项不会中断其他项，最后统一汇总。
 
-### 基础工具链
+想先看会装什么、不修改系统：
 
-| Key | 工具 | 方式 |
+```bash
+bash ai-stack.sh --dry-run
+```
+
+---
+
+## 它会做什么
+
+- **缺什么装什么**：已安装且最新 → 跳过；已安装但旧 → 升级；没装 → 安装。
+- **重复运行安全**：随时可以再跑，不会重复安装。
+- **失败不阻塞**：单项失败会记录，继续处理后面的，最后给出失败清单和日志路径。
+- **自动兜底**：Claude Code 的 Homebrew 包下载失败时，自动改用 `npm install -g @anthropic-ai/claude-code@latest`；已用 npm 装过的下次直接走 npm，不再等待超时。
+- **不改你的数据**：覆盖的只是 `/Applications` 里的 App 本体，登录状态、配置、聊天记录在 `~/Library`，不会被删。
+- **关闭匿名统计**：`HOMEBREW_NO_ANALYTICS=1`。
+
+---
+
+## 清单（44 项）
+
+### 基础工具链（8）
+
+| Key | 工具 | 类型 |
 |---|---|---|
 | `node` | Node.js / npm / npx | formula |
 | `git` | Git | formula |
 | `gh` | GitHub CLI | formula |
-| `uv` | uv / uvx（Python） | formula |
+| `uv` | uv / uvx（Python 工具链） | formula |
 | `bun` | Bun / bunx | formula |
-| `jq` | jq | formula |
-| `ripgrep` | ripgrep（rg） | formula |
-| `fd` | fd | formula |
+| `jq` | jq（JSON 处理） | formula |
+| `ripgrep` | ripgrep（`rg`，代码搜索） | formula |
+| `fd` | fd（快速文件查找） | formula |
 
-### 你点名的桌面应用
+### 桌面应用（16）
 
 | Key | 工具 | 说明 |
 |---|---|---|
 | `chatgpt` | ChatGPT 桌面版 | |
-| `claude` | Claude 桌面版 | 下载源 `downloads.claude.ai` 被墙时需代理，或改用 App Store 版 |
+| `claude` | Claude 桌面版 | 下载源被墙时需代理，见 FAQ |
 | `antigravity` | Google Antigravity 2 | Agent 调度台 |
-| `antigravity-ide` | Google Antigravity IDE | 如只要一个，可 `--skip antigravity-ide` |
+| `antigravity-ide` | Google Antigravity IDE | 只要一个可 `--skip antigravity-ide` |
 | `workbuddy-cn` | WorkBuddy 国内版 | 国际版 id 为 `workbuddy-ai` |
 | `trae-cn` | Trae CN 国内版 | 国际版 id 为 `trae` |
-| `qoder` | Qoder 国际版 | 国内版 Qoder CN 请用应用内更新，或 `--skip qoder` |
+| `qoder` | Qoder 国际版 | 国内版 Qoder CN 用应用内更新，或 `--skip qoder` |
 | `doubao` | 豆包 | |
 | `clash-verge-rev` | Clash Verge Rev | |
-| `cc-switch` | CC Switch | Claude/Codex 配置切换 |
+| `cc-switch` | CC Switch | Claude / Codex 配置切换 |
 | `feishu` | 飞书 | |
 | `google-chrome` | Google Chrome | |
 | `cherry-studio` | Cherry Studio | |
@@ -84,18 +126,18 @@ chmod +x ai-stack.sh
 | `github` | GitHub Desktop | |
 | `hermes-desktop` | Hermes Agent 桌面版 | |
 
-### 你点名的命令行工具
+### 命令行工具（6）
 
 | Key | 命令 | 工具 |
 |---|---|---|
 | `codex` | `codex` | OpenAI Codex CLI |
-| `claude-code` | `claude` | Claude Code CLI（cask 下载失败会自动改用 npm 安装） |
+| `claude-code` | `claude` | Claude Code CLI（cask 失败自动转 npm） |
 | `grok` | `grok` | xAI 官方 Grok Build |
 | `agy` | `agy` | Antigravity CLI |
 | `qwen` | `qwen` | Qwen Code CLI |
 | `hermes-cli` | `hermes` | Hermes Agent CLI |
 
-### 推荐补充（默认安装，`--no-recommend` 可跳过）
+### 推荐补充（14，默认安装）
 
 | Key | 工具 | 用途 |
 |---|---|---|
@@ -108,69 +150,74 @@ chmod +x ai-stack.sh
 | `ollama-app` | Ollama | 本地跑开源模型 |
 | `lm-studio` | LM Studio | 本地模型 GUI / Server |
 | `cursor` | Cursor | AI IDE |
-| `visual-studio-code` | VS Code | 通用编辑器 + Copilot |
+| `visual-studio-code` | VS Code | 通用编辑器 |
 | `zed` | Zed | 高性能编辑器 |
 | `ghostty` | Ghostty | 原生 GPU 终端 |
-| `orbstack` | OrbStack | Docker 替代，跑 MCP/Open WebUI 很方便 |
+| `orbstack` | OrbStack | Docker 替代 |
 | `chatbox` | Chatbox | 多模型聊天客户端 |
 
-为什么是这些：AI 开发常用链路基本是 **终端 + 编辑器 + 本地模型 + Docker + 多模型客户端**。`uv`/`bun` 覆盖 Python 和 JS 的 MCP 工具，`ripgrep`/`fd`/`jq` 是 Agent 高频依赖，`gh` 直接带 Copilot 能力。
+不要推荐项：加 `--no-recommend`，只装前 30 项。
 
-## 常用参数
+---
 
-```bash
-./ai-stack.sh                      # 全部安装/更新（含推荐）
-./ai-stack.sh --no-recommend       # 只装点名的，不装推荐补充
-./ai-stack.sh --no-claude          # 跳过 Claude 桌面版 + Claude Code
-./ai-stack.sh --dry-run            # 只预览，不改系统
-./ai-stack.sh --list               # 列出全部 Key
-./ai-stack.sh --only codex,claude-code
-./ai-stack.sh --only apps,cli      # 按分组选择
-./ai-stack.sh --skip trae-cn,antigravity-ide
-./ai-stack.sh --no-update          # 跳过 brew update，更快
-./ai-stack.sh --no-greedy          # 不强制升级自带自动更新的 App，更快
-./ai-stack.sh --cleanup            # 结束后清理旧版本缓存
-```
+## 参数说明
 
-## 国内网络
+| 参数 | 作用 |
+|---|---|
+| `--only LIST` | 只处理指定条目或分组，逗号分隔：`--only codex,claude-code` / `--only apps,cli` |
+| `--skip LIST` | 跳过指定条目或分组：`--skip qoder,antigravity-ide` |
+| `--no-recommend` | 不安装 `recommend` 分组（推荐补充） |
+| `--no-claude` | 跳过 Claude 桌面版 + Claude Code（网络受限时用，只影响安装/更新，不卸载） |
+| `--dry-run`, `-n` | 只预览，不改系统 |
+| `--list`, `-l` | 列出全部条目和 Key |
+| `--status` | 以 **JSON** 输出全部条目的安装状态（给脚本 / AI 读取） |
+| `--no-update` | 跳过 `brew update`，更快（可能不是最新索引） |
+| `--no-greedy` | 不强制升级自带自动更新的 App，更快 |
+| `--cleanup` | 结束后执行 `brew cleanup --prune=7` |
+| `--cn` | Homebrew 使用清华 TUNA 镜像 |
+| `--proxy URL` | 本次运行使用 HTTP/HTTPS 代理（Homebrew、curl、npm 都走） |
+| `--help`, `-h` | 帮助 |
+| `--version` | 版本号 |
 
-```bash
-./ai-stack.sh --cn
-./ai-stack.sh --proxy http://127.0.0.1:7890
-```
+退出码：`0` 全部成功；`1` 有失败项；`2` 参数错误；`130` 手动中断。
 
-- `--cn`：Homebrew 使用清华 TUNA 镜像。
-- `--proxy`：本次运行的 HTTP/HTTPS 代理，Homebrew、curl 都会走。
-- 如果 `raw.githubusercontent.com` 被墙，Homebrew 安装脚本可能下载失败；先开代理，或用环境变量换安装脚本地址：
+---
 
-```bash
-AI_STACK_BREW_INSTALL_URL="https://你的镜像/install.sh" ./ai-stack.sh --cn
-```
-
-### Claude 下载被墙怎么办
-
-Claude 桌面版和 Claude Code 的官方 cask 都从 `downloads.claude.ai` 下载，国内网络经常直接超时。脚本已经内置了处理方式：
-
-- **Claude Code CLI**：cask 下载失败会自动改用 `npm install -g @anthropic-ai/claude-code@latest`。
-  一旦用 npm 装过，后续运行会直接走 npm 更新，不再等待 cask 超时。
-- **Claude 桌面版**：没有可用的镜像。三种办法：
-  1. 开代理后运行 `./ai-stack.sh --only claude --proxy http://127.0.0.1:7890`；
-  2. 从 Mac App Store 安装（搜 “Claude”，需要对应区账号）；
-  3. 手动下载安装包装好后，其他工具仍由脚本管理；Claude 桌面版本身会在每次运行时提示失败。
-
-检查是否被墙：
+## 典型场景
 
 ```bash
-curl -I --connect-timeout 8 https://downloads.claude.ai/
+# 全量安装 / 更新（含推荐项）
+./ai-stack.sh
+
+# 只装点名的，不要推荐补充
+./ai-stack.sh --no-recommend
+
+# 只更新某几个
+./ai-stack.sh --only codex,claude-code,cherry-studio
+
+# 按分组更新
+./ai-stack.sh --only apps
+./ai-stack.sh --only cli
+
+# 跳过大件 / 某些 App
+./ai-stack.sh --skip qoder,lm-studio
+
+# 网络受限：跳过两个 Claude + 走镜像
+./ai-stack.sh --cn --no-claude
+
+# 只检查，不动系统
+./ai-stack.sh --dry-run
+
+# 看某台机器现在装了什么（JSON）
+./ai-stack.sh --status
+
+# 有代理时补装 Claude 桌面版
+./ai-stack.sh --only claude --proxy http://127.0.0.1:7890
 ```
 
-超时就是网络不通，不是脚本问题。
+### 定时自动更新（可选）
 
-## 定时自动更新（可选）
-
-如果想让 Mac 每周一自动跑一次，可以创建 LaunchAgent：
-
-`~/Library/LaunchAgents/com.local.ai-stack.plist`
+`~/Library/LaunchAgents/com.local.ai-stack.plist`：
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -202,80 +249,200 @@ curl -I --connect-timeout 8 https://downloads.claude.ai/
 ```bash
 mkdir -p ~/Library/Logs/ai-stack
 launchctl load ~/Library/LaunchAgents/com.local.ai-stack.plist
+# 停止：launchctl unload ~/Library/LaunchAgents/com.local.ai-stack.plist
 ```
 
-停止：
+---
+
+## 给 AI 助手用
+
+这个仓库是给 AI 直接操作设计的，不只是给人看。
+
+### 1. `AGENTS.md`
+
+仓库根目录的 [`AGENTS.md`](AGENTS.md) 是给 AI 编码助手的操作手册（Claude Code、Codex、Cursor、Gemini CLI 等都能读）。里面写了命令契约、典型任务、安全边界。新机器上把仓库 clone 下来，AI 就能按说明直接干活。
+
+### 2. 机器可读状态：`--status`
+
+AI 不需要解析中文表格，直接读 JSON：
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.local.ai-stack.plist
+./ai-stack.sh --status
 ```
+
+```json
+{
+  "script": "ai-stack",
+  "version": "1.1.1",
+  "macos": "26.6.2",
+  "arch": "arm64",
+  "host": "MacBook-Air.local",
+  "homebrew_installed": true,
+  "filters": { "only": "", "skip": "", "no_recommend": 0, "no_claude": 0 },
+  "items": [
+    {
+      "key": "claude-code",
+      "group": "cli",
+      "label": "Claude Code CLI（claude）",
+      "type": "cask",
+      "id": "claude-code",
+      "fallback": "npm:@anthropic-ai/claude-code",
+      "note": "",
+      "selected": true,
+      "installed": true,
+      "via": "npm",
+      "version": "2.1.318"
+    }
+  ]
+}
+```
+
+字段说明：
+
+| 字段 | 含义 |
+|---|---|
+| `key` | 条目标识，用于 `--only` / `--skip` |
+| `group` | `base` / `apps` / `cli` / `recommend` |
+| `type` / `id` | 安装方式与 Homebrew/npm 标识 |
+| `fallback` | 主来源失败时的备用来源，如 `npm:@anthropic-ai/claude-code` |
+| `selected` | 本次参数下是否会被处理 |
+| `installed` | 是否已安装（含 npm 兜底） |
+| `via` | 实际来源：`cask` / `formula` / `npm` |
+| `version` | 已安装版本，未装为空 |
+
+### 3. 直接对 AI 说的话
+
+```
+先运行 ./ai-stack.sh --status 看现状，然后只安装缺少的项，最后再跑一次 --status 确认。
+```
+
+```
+把 ai-stack.sh 里 cherry-studio 和 zed 更新到最新，其他不要动。
+```
+
+```
+按 AGENTS.md 的说明，在这台新 Mac 上初始化整套 AI 工具，跳过 Claude。
+```
+
+### 4. 写入你的 AI 配置
+
+- Claude Code / Codex：直接把仓库 `clone` 到工作目录，它们会自动读 `AGENTS.md`。
+- Gemini CLI：仓库里另有 `GEMINI.md` 指向同一份说明。
+- 其他工具：把 `AGENTS.md` 内容贴进系统提示词即可。
+
+---
 
 ## 常见问题
 
-### 1. 为什么升级失败？
+### 1. 某个 App 升级失败？
 
-最常见的原因：
+按顺序排查：
 
-- 应用正在运行。先退出对应 App，再执行 `./ai-stack.sh --only <key>`。
-- 网络超时。开代理后重试。
-- 某个 cask 暂时下架或改名。看日志里的 brew 报错。
+1. **App 正在运行** → 退出后再跑 `./ai-stack.sh --only <key>`；
+2. **网络超时** → 加 `--proxy` 或换时间重试；
+3. **cask 改名/下架** → 看日志里的 brew 报错。
 
-脚本会继续处理其他项目，最后汇总失败项，不会因为一个失败全部中断。
+脚本不会因为一项失败中断，日志在 `~/Library/Logs/ai-stack/latest.log`。
 
-### 2. 我已经手动装过某个 App，会被覆盖吗？
+### 2. Clash Verge 提示「正在临时目录运行 / 配置无法保存」
 
-会。脚本对未由 Homebrew 管理的同名 App 使用 `brew install --cask --force` 接管，覆盖的是 `/Applications` 里的 App 本体。你的配置、登录状态、聊天记录通常在 `~/Library`，不会被删除。
+这是 macOS 的 **App Translocation（应用转译）**：带隔离属性的 App 启动时会被系统放到 `/private/var/folders/.../AppTranslocation/...` 只读路径运行。不是脚本装错了位置，软件本体在 `/Applications`。
 
-### 3. Qoder / Trae / WorkBuddy 国内版和国际版
-
-- 脚本默认国内版：`trae-cn`、`workbuddy-cn`。
-- Qoder 官方 cask 是国际版；国内版 Qoder CN 一般由 App 自己更新，不需要脚本处理，可 `--skip qoder`。
-- 想换国际版：编辑 `ai-stack.sh` 清单里的 cask id（例如把 `trae-cn` 改成 `trae`），保存后重新运行即可。
-
-### 4. 怎么只更新某个工具？
+Clash Verge 自带的 launchGuard 检测到只读路径就会弹提醒并拒绝写配置。两种修法：
 
 ```bash
-./ai-stack.sh --only codex
-./ai-stack.sh --only chatgpt,claude
+# 修法 A：重新安装（推荐，会拿到最新版并换掉带隔离属性的包）
+brew reinstall --cask --force clash-verge-rev
+
+# 修法 B：只去掉隔离属性（在「终端」里执行；系统可能要求授予 App 管理权限）
+xattr -dr com.apple.quarantine "/Applications/Clash Verge.app"
+open "/Applications/Clash Verge.app"
 ```
 
-### 5. 日志在哪？
+修好后确认进程路径是 `/Applications/Clash Verge.app/...`，而不是 `AppTranslocation`：
+
+```bash
+ps -Ao pid,command | grep "Clash Verge.app/Contents/MacOS"
+```
+
+### 3. Claude 下载一直超时？
+
+`downloads.claude.ai`（35.190.46.17）在部分网络下直接 TCP 超时，属于网络层封锁：
+
+- **Claude Code CLI**：脚本会自动改用 npm，无需代理；
+- **Claude 桌面版**：开代理后 `./ai-stack.sh --only claude --proxy http://127.0.0.1:7890`，或用 Mac App Store 版；
+- 自检：`curl -I --connect-timeout 8 https://downloads.claude.ai/`，超时就是网络问题。
+
+### 4. 我已经手动装过某个 App，会被覆盖吗？
+
+会。对不由 Homebrew 管理的同名 App，脚本用 `brew install --cask --force` 接管，覆盖的是 `/Applications` 里的 App 本体。你的登录状态、配置、聊天记录在 `~/Library`，不受影响。
+
+### 5. Qoder / Trae / WorkBuddy 国际版和国内版
+
+- 默认国内版：`trae-cn`、`workbuddy-cn`；Qoder 的官方 cask 是国际版。
+- 国内版 Qoder CN 一般由 App 自己更新，可 `--skip qoder`。
+- 想换国际版：编辑 `ai-stack.sh` 里的 cask id（如 `trae-cn` → `trae`）。
+
+### 6. 为什么 Claude Code 显示 `via: npm`？
+
+它的 Homebrew 包和 npm 包是同一个 CLI。脚本优先用 cask，下载失败时自动转 npm；之后检测到已有 npm 版本就直接走 npm 更新，省掉每次 75 秒的下载超时。
+
+### 7. 需要一直联网吗？
+
+只有安装/升级时需要。已装好的工具离线可用。
+
+### 8. 支持 Intel Mac 吗？
+
+支持。脚本按 `/opt/homebrew`（Apple Silicon）和 `/usr/local`（Intel）自动选择 Homebrew 路径，清单里的 cask 都是双架构或官方 universal 包。
+
+### 9. 日志在哪？
 
 ```bash
 open ~/Library/Logs/ai-stack
 ```
 
-`latest.log` 永远指向最近一次运行。
+`run-YYYYMMDD-HHMMSS.log` 每次一份，`latest.log` 指向最近一次。
 
-### 6. 怎么卸载？
+---
 
-```bash
-brew uninstall --cask <token>
-brew uninstall <formula>
-```
-
-例如：
+## 卸载 / 定制
 
 ```bash
-brew uninstall --cask cherry-studio
-brew uninstall qwen-code
+brew uninstall --cask <token>     # 卸载 GUI（如 cherry-studio）
+brew uninstall <formula>          # 卸载 CLI（如 qwen-code）
+npm uninstall -g @anthropic-ai/claude-code   # 卸载 npm 装的 Claude Code
 ```
 
-### 7. 怎么往清单里加工具？
-
-编辑 `ai-stack.sh` 里的 `add_item` 段：
+加工具：编辑 `ai-stack.sh` 里的 `add_item` 段。
 
 ```bash
 add_item apps my-app "我的工具" cask my-app
 add_item cli  my-cli "我的 CLI" formula my-cli
-add_item cli  my-npm "我的 npm CLI" npm @scope/my-cli
+add_item cli  my-npm "npm 版 CLI" npm @scope/my-cli
+# 第 6 个参数是备注，第 7 个是备用来源（可选）
+add_item cli  my-cli2 "带兜底的 CLI" cask my-cli2 "" npm:my-cli2
 ```
 
-类型支持 `cask`、`formula`、`npm`。
+---
 
-## 说明
+## 开发
 
-- 所有软件来自 Homebrew 官方 cask/formula 及其上游官方下载地址。
-- 脚本关闭了 Homebrew 匿名统计（`HOMEBREW_NO_ANALYTICS=1`）。
-- `--dry-run` 不会安装 Homebrew，也不会改任何文件。
-- 首次安装 Homebrew 需要管理员密码；之后的 App 安装通常不需要。
+```bash
+bash -n ai-stack.sh                  # 语法检查
+./ai-stack.sh --list                 # 清单
+./ai-stack.sh --status | python3 -m json.tool   # JSON 合法性
+./ai-stack.sh --dry-run              # 全量预演（不改系统）
+```
+
+约定：
+
+- 只用 macOS 自带 **Bash 3.2** 的语法，不依赖 zsh / bash 4+；
+- 中文与 `$变量` 相邻时一律写 `${变量}`，避免 3.2 的多字节解析 bug；
+- 安装逻辑只依赖 Homebrew Cask / Formula / npm 三种来源；
+- 新增条目要补 `--list` 能显示、`--status` 能正确报告 `installed`。
+
+---
+
+## License
+
+[MIT](LICENSE)

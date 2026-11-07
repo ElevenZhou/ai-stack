@@ -22,13 +22,14 @@
 #
 set -o pipefail
 
-SCRIPT_VERSION="1.1.0"
+SCRIPT_VERSION="1.1.1"
 
 # ---------------------------------------------------------------------------
 # 默认参数
 # ---------------------------------------------------------------------------
 DRY_RUN=0
 LIST_ONLY=0
+STATUS_ONLY=0
 NO_UPDATE=0
 NO_GREEDY=0
 NO_RECOMMEND=0
@@ -87,6 +88,7 @@ AI 工具栈 · macOS 一键安装 / 更新
   --no-claude        跳过 Claude 桌面版和 Claude Code（网络受限时用）
   --dry-run, -n      只预览，不修改系统
   --list, -l         列出全部条目后退出
+  --status           以 JSON 输出所有工具的安装状态（给脚本/AI 读取）
   --no-update        不执行 brew update（更快，但可能不是最新）
   --no-greedy        不强制升级自带自动更新的 App（更快）
   --cleanup          结束后执行 brew cleanup --prune=7
@@ -216,6 +218,7 @@ while [[ $# -gt 0 ]]; do
     --claude)       NO_CLAUDE=0; shift ;;
     --dry-run|-n)   DRY_RUN=1; shift ;;
     --list|-l)      LIST_ONLY=1; shift ;;
+    --status)       STATUS_ONLY=1; shift ;;
     --no-update)    NO_UPDATE=1; shift ;;
     --no-greedy)    NO_GREEDY=1; shift ;;
     --cleanup)      DO_CLEANUP=1; shift ;;
@@ -788,10 +791,95 @@ print_summary() {
 }
 
 # ---------------------------------------------------------------------------
+# 状态输出（机器可读，给 AI / 脚本用）
+# ---------------------------------------------------------------------------
+json_quote() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/ }"
+  printf '%s' "$s"
+}
+
+print_status_json() {
+  local i first=1 sel installed ver via
+  local have_brew="false"
+  [[ -n "$BREW" ]] && have_brew="true"
+
+  printf '{\n'
+  printf '"script":"ai-stack",\n'
+  printf '"version":"%s",\n' "$SCRIPT_VERSION"
+  printf '"macos":"%s",\n' "$(sw_vers -productVersion 2>/dev/null)"
+  printf '"arch":"%s",\n' "$(uname -m)"
+  printf '"host":"%s",\n' "$(json_quote "$(hostname)")"
+  printf '"homebrew_installed":%s,\n' "$have_brew"
+  printf '"filters":{"only":"%s","skip":"%s","no_recommend":%s,"no_claude":%s},\n' \
+    "$(json_quote "$ONLY")" "$(json_quote "$SKIP")" "$NO_RECOMMEND" "$NO_CLAUDE"
+  printf '"items":[\n'
+
+  for i in "${!ITEM_KEY[@]}"; do
+    [[ $first -eq 1 ]] || printf ',\n'
+    first=0
+
+    if is_selected "${ITEM_KEY[$i]}" "${ITEM_GROUP[$i]}"; then
+      sel="true"
+    else
+      sel="false"
+    fi
+
+    installed="false"
+    ver=""
+    via=""
+    if [[ -n "$BREW" ]]; then
+      ver="$(version_of "${ITEM_TYPE[$i]}" "${ITEM_ID[$i]}" 2>/dev/null)"
+      if [[ -n "$ver" ]]; then
+        installed="true"
+        via="${ITEM_TYPE[$i]}"
+      fi
+    fi
+
+    # 主来源没有、但备用来源（npm）已装：同样视为已安装
+    if [[ "$installed" != "true" && -n "${ITEM_FALLBACK[$i]}" ]]; then
+      case "${ITEM_FALLBACK[$i]}" in
+        npm:*)
+          ver="$(version_of npm "${ITEM_FALLBACK[$i]#npm:}" 2>/dev/null)"
+          if [[ -n "$ver" ]]; then
+            installed="true"
+            via="npm"
+          fi
+          ;;
+      esac
+    fi
+
+    printf '{"key":"%s","group":"%s","label":"%s","type":"%s","id":"%s","fallback":"%s","note":"%s","selected":%s,"installed":%s,"via":"%s","version":"%s"}' \
+      "$(json_quote "${ITEM_KEY[$i]}")" \
+      "$(json_quote "${ITEM_GROUP[$i]}")" \
+      "$(json_quote "${ITEM_LABEL[$i]}")" \
+      "$(json_quote "${ITEM_TYPE[$i]}")" \
+      "$(json_quote "${ITEM_ID[$i]}")" \
+      "$(json_quote "${ITEM_FALLBACK[$i]}")" \
+      "$(json_quote "${ITEM_NOTE[$i]}")" \
+      "$sel" "$installed" "$via" "$ver"
+  done
+
+  printf '\n]\n}\n'
+}
+
+# ---------------------------------------------------------------------------
 # 主流程
 # ---------------------------------------------------------------------------
 if [[ "$LIST_ONLY" -eq 1 ]]; then
   show_list
+  exit 0
+fi
+
+if [[ "$STATUS_ONLY" -eq 1 ]]; then
+  find_brew
+  if [[ -n "$BREW_BIN" ]]; then
+    eval "$("$BREW_BIN" shellenv)"
+    BREW="$BREW_BIN"
+  fi
+  print_status_json
   exit 0
 fi
 
