@@ -48,7 +48,7 @@
 ```json
 {
   "script": "ai-stack",
-  "version": "1.2.0",
+  "version": "1.4.0",
   "macos": "26.6.2",
   "arch": "arm64",
   "host": "MacBook-Air.local",
@@ -71,14 +71,14 @@
 | `note` | string | 备注（有时含「替代方案」） |
 | `selected` | boolean | 本次参数下是否会被处理 |
 | `installed` | boolean | 是否已安装（含 fallback 与 /Applications 手动安装） |
-| `via` | string | 实际来源：`formula` / `cask` / `npm` / `app`（手动安装）/ `""` |
+| `via` | string | 实际来源：`formula` / `cask` / `npm` / `app`（手动装的 App）/ `bin`（手动装的 CLI）/ `""` |
 | `version` | string | 已装版本；未装为 `""` |
 
 **判定规则（重要）：**
 
 - 想知道「还缺什么」→ 过滤 `installed == false`。
 - 想知道「哪些会被这次运行处理」→ 过滤 `selected == true`。
-- `installed == true && via == "app"` 表示是手动安装的 App（brew 不认识），AI 不应直接删除或重装；需要统一管理时先征得用户同意，再用 `--adopt`。
+- `installed == true && via` 为 `"app"` 或 `"bin"` 时，表示是手动安装（brew 不认识）：AI 不应直接删除或重装；需要统一管理时先征得用户同意，再用 `--adopt`。
 - `installed == true && via == "npm"` 说明该 CLI 走的是备用来源，**不要再让它走 cask**，否则会重复超时。
 - 不要根据 `label` 或 `note` 做逻辑判断，只认 `key` / `id`。
 
@@ -95,7 +95,7 @@
 
 # 安装 / 更新
 ./ai-stack.sh                       # 全部 + 推荐项
-./ai-stack.sh --no-recommend        # 只装核心 30 项
+./ai-stack.sh --no-recommend        # 不处理 recommend，只装核心 32 项
 ./ai-stack.sh --only <keys>         # 逗号分隔，支持分组名
 ./ai-stack.sh --skip <keys>         # 逗号分隔，支持分组名
 ./ai-stack.sh --only apps           # 只处理 GUI
@@ -115,6 +115,10 @@
 ```
 
 `--only` / `--skip` 接受 **key 或 group 名**，可混用：`--only cli,cherry-studio`。
+
+默认不传筛选参数时会处理全部清单（当前 46 项）。
+`--only` 是白名单：只处理指定 key/分组；`--skip` 是黑名单：处理全部但排除指定 key/分组。
+如果同时使用，先按 `--only` 选中，再按 `--skip` 排除。
 
 ---
 

@@ -19,7 +19,7 @@ curl -fsSL https://raw.githubusercontent.com/ElevenZhou/ai-stack/main/ai-stack.s
 
 - [快速开始](#快速开始)
 - [它会做什么](#它会做什么)
-- [清单（44 项）](#清单44-项)
+- [清单（46 项）](#清单46-项)
 - [参数说明](#参数说明)
 - [典型场景](#典型场景)
 - [给 AI 助手用](#给-ai-助手用)
@@ -45,7 +45,7 @@ curl -fsSL https://cdn.jsdelivr.net/gh/ElevenZhou/ai-stack@main/ai-stack.sh -o ~
 bash ~/ai-stack.sh
 ```
 
-> jsDelivr 对 `@main` 有约 12 小时缓存，可能拿到旧版本。想立刻用最新版，改用 tag：`@v1.2.0`，或干脆用上面的 raw 地址。
+> jsDelivr 对 `@main` 有约 12 小时缓存，可能拿到旧版本。想立刻用最新版，改用 tag：`@v1.4.0`，或干脆用上面的 raw 地址。
 
 国内网络建议加 `--cn`（Homebrew 走清华镜像）：
 
@@ -100,6 +100,7 @@ bash ai-stack.sh --dry-run
 | brew 已装 + 已是最新 | **跳过**，不做任何事 | `已是最新` |
 | brew 已装 + App 文件被删了 | `brew install --cask --force` 补装 | `已安装` |
 | **手动装过同名 App**（brew 不认识） | **默认跳过**，只提示；`--adopt` 才接管 | `手动安装` |
+| **手动装过的纯 CLI**（PATH 里已有命令） | 同上 | `手动安装` |
 | brew 和 /Applications 都没有 | `brew install --cask --force` / `brew install` | `已安装` |
 | npm 条目 | 先查线上版本，相同则跳过，不同才装 | `已是最新` / `已更新` |
 | 主来源失败（如 Claude Code 的 cask） | 自动改用 fallback（npm） | `已安装` / `已更新` |
@@ -117,6 +118,7 @@ bash ai-stack.sh --dry-run
 - **判定依据是 Homebrew 本地索引**。如果 `brew update` 失败（断网、镜像不可达），索引是旧的，可能把「其实有新版」误报成 `已是最新`。日志里会有 `brew update 失败` 的提示，重跑一次即可。
 - **自带自动更新的 App**（Chrome、VS Code、Cursor 等）默认靠 `--greedy` 判定；加了 `--no-greedy` 就会被当作已是最新而跳过，这是有意的省时选项。
 - **手动装过的同名 App 默认不会被覆盖**：脚本在 `/Applications` 里找到它，就标为 `手动安装，已跳过`，并打印它的版本和 Homebrew 上的最新版本供你判断。想纳入统一管理时加 `--adopt`，它会用 `brew install --cask --force` 接管一次（只替换 App 本体，`~/Library` 里的数据和登录状态不动），之后自动跟随升级。
+- **纯 CLI 也一样**：像 `codex`、`grok`、`cursor-agent` 这些只装命令的条目，脚本会在 PATH 里找同名命令；如果命令存在但不是 Homebrew 的（例如 `npm i -g` 装的），同样标为 `手动安装，已跳过`。判断依据是命令的符号链接指向：指向 `Caskroom` / `Cellar` 才算 brew 管的。
 - **版本号不跨厂商可比**：例如飞书的 `CFBundleShortVersionString` 是 `147.0.7727.149`，而 cask 版本是 `8.4.7,...`。所以脚本不对手动安装的 App 自作主张判断新旧，只把两个版本号都显示出来。
 - `--dry-run` 会走同一套判断，只打印「将安装 / 将升级 / 已是最新 / 手动安装」，不改系统。
 
@@ -124,7 +126,7 @@ bash ai-stack.sh --dry-run
 
 ---
 
-## 清单（44 项）
+## 清单（46 项）
 
 ### 基础工具链（8）
 
@@ -139,7 +141,7 @@ bash ai-stack.sh --dry-run
 | `ripgrep` | ripgrep（`rg`，代码搜索） | formula |
 | `fd` | fd（快速文件查找） | formula |
 
-### 桌面应用（16）
+### 桌面应用（18）
 
 | Key | 工具 | 说明 |
 |---|---|---|
@@ -159,6 +161,8 @@ bash ai-stack.sh --dry-run
 | `deepseek-harness` | DeepSeek Harness 桌面版 | |
 | `github` | GitHub Desktop | |
 | `hermes-desktop` | Hermes Agent 桌面版 | |
+| `google-gemini` | Google Gemini 客户端 | Google Gemini 桌面版 |
+| `grok-bot` | Grok Bot 客户端 | xAI Grok Bot 桌面版 |
 
 ### 命令行工具（6）
 
@@ -190,7 +194,7 @@ bash ai-stack.sh --dry-run
 | `orbstack` | OrbStack | Docker 替代 |
 | `chatbox` | Chatbox | 多模型聊天客户端 |
 
-不要推荐项：加 `--no-recommend`，只装前 30 项。
+默认运行会处理全部 46 项（包括推荐补充）。想跳过推荐补充，加 `--no-recommend`，只处理核心 32 项。
 
 ---
 
@@ -237,6 +241,12 @@ bash ai-stack.sh --dry-run
 
 # 跳过大件 / 某些 App
 ./ai-stack.sh --skip qoder,lm-studio
+
+# 只装/更新指定的客户端
+./ai-stack.sh --only cursor,google-gemini,grok-bot
+
+# 默认全装，但排除指定客户端
+./ai-stack.sh --skip cursor,google-gemini,grok-bot
 
 # 网络受限：跳过两个 Claude + 走镜像
 ./ai-stack.sh --cn --no-claude
@@ -309,7 +319,7 @@ AI 不需要解析中文表格，直接读 JSON：
 ```json
 {
   "script": "ai-stack",
-  "version": "1.2.0",
+  "version": "1.4.0",
   "macos": "26.6.2",
   "arch": "arm64",
   "host": "MacBook-Air.local",
@@ -343,7 +353,7 @@ AI 不需要解析中文表格，直接读 JSON：
 | `fallback` | 主来源失败时的备用来源，如 `npm:@anthropic-ai/claude-code` |
 | `selected` | 本次参数下是否会被处理 |
 | `installed` | 是否已安装（brew / npm 兜底 / 手动安装的 App 都算） |
-| `via` | 实际来源：`cask` / `formula` / `npm` / `app`（手动安装，未被 brew 管理） |
+| `via` | 实际来源：`cask` / `formula` / `npm` / `app`（手动装的 App）/ `bin`（手动装的 CLI） |
 | `version` | 已安装版本，未装为空 |
 
 ### 3. 直接对 AI 说的话

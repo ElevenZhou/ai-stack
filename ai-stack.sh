@@ -22,7 +22,7 @@
 #
 set -o pipefail
 
-SCRIPT_VERSION="1.2.0"
+SCRIPT_VERSION="1.4.0"
 
 # ---------------------------------------------------------------------------
 # 默认参数
@@ -174,6 +174,8 @@ add_item apps cherry-studio    "Cherry Studio"                        cask cherr
 add_item apps deepseek-harness "DeepSeek Harness 桌面版"               cask deepseek-harness
 add_item apps github           "GitHub Desktop"                       cask github
 add_item apps hermes-desktop   "Hermes Agent 桌面版"                   cask hermes-desktop
+add_item apps google-gemini    "Google Gemini 客户端"                  cask google-gemini
+add_item apps grok-bot         "Grok Bot 客户端"                       cask grok-bot
 
 # ---- 你点名的命令行工具 ---------------------------------------------------
 add_item cli codex            "Codex CLI（codex）"                     cask codex
@@ -524,6 +526,8 @@ app_name_for_key() {
     deepseek-harness)   printf 'DeepSeek Harness.app' ;;
     github)             printf 'GitHub Desktop.app' ;;
     hermes-desktop)     printf 'Hermes.app' ;;
+    google-gemini)      printf 'Gemini.app' ;;
+    grok-bot)           printf 'Grok Bot.app' ;;
     ollama-app)         printf 'Ollama.app' ;;
     lm-studio)          printf 'LM Studio.app' ;;
     cursor)             printf 'Cursor.app' ;;
@@ -543,6 +547,20 @@ app_path_by_name() {
     [[ -d "$d/$name" ]] && { printf '%s' "$d/$name"; return 0; }
   done
   return 1
+}
+
+# 纯 CLI 的 cask 条目：没有 .app，只能靠命令名判断是否已存在
+cli_bin_for_key() {
+  case "$1" in
+    codex)       printf 'codex' ;;
+    claude-code) printf 'claude' ;;
+    grok)        printf 'grok' ;;
+    agy)         printf 'agy' ;;
+    copilot-cli) printf 'copilot' ;;
+    cursor-cli)  printf 'cursor-agent' ;;
+    kiro-cli)    printf 'kiro-cli' ;;
+    *)           printf '' ;;
+  esac
 }
 
 app_version_of_path() {
@@ -794,6 +812,32 @@ run_item() {
   [[ -n "$note" ]] && printf '  %s%s%s\n' "$C_DIM" "$note" "$C_RESET"
   [[ -n "$fb_note" ]] && printf '  %s%s%s\n' "$C_DIM" "$fb_note" "$C_RESET"
 
+  # 纯 CLI 的 cask：brew 账本里没有，但命令已在 PATH 里（手动 npm/下载安装）
+  # → 视为已安装并跳过；--adopt 时继续走 brew 接管。
+  if [[ "$type" == "cask" && -n "$BREW" && "$ADOPT" -ne 1 ]]; then
+    local _bin _bp _appname _tgt
+    _appname="$(app_name_for_key "$key")"
+    _bin="$(cli_bin_for_key "$key")"
+    if [[ -z "$_appname" && -n "$_bin" ]] \
+       && ! "$BREW" list --cask "$id" >/dev/null 2>&1; then
+      _bp="$(command -v "$_bin" 2>/dev/null || true)"
+      if [[ -n "$_bp" && -x "$_bp" ]]; then
+        # 排除 Homebrew 自己的 shim：指向 Caskroom / Cellar 的符号链接
+        _tgt="$(readlink "$_bp" 2>/dev/null || true)"
+        case "$_tgt" in
+          *Caskroom*|*Cellar*) _bp="" ;;
+        esac
+      fi
+      if [[ -n "$_bp" && -x "$_bp" ]]; then
+        printf '  已存在命令：%s\n' "$_bp"
+        info "未被 Homebrew 管理，本次跳过；想交给 Homebrew 管理请加 --adopt。"
+        RESULT_STATUS="manual"
+        record_result "$RESULT_STATUS" "$label" "" "$key"
+        return 0
+      fi
+    fi
+  fi
+
   if [[ -n "$BREW" ]]; then
     before=$(version_of "$type" "$id")
     [[ -n "$before" ]] && printf '  当前版本：%s\n' "$before"
@@ -945,7 +989,7 @@ json_quote() {
 }
 
 print_status_json() {
-  local i first=1 sel installed ver via app_path
+  local i first=1 sel installed ver via app_path bin_name bin_path bin_tgt
   local have_brew="false"
   [[ -n "$BREW" ]] && have_brew="true"
 
@@ -1001,6 +1045,22 @@ print_status_json() {
         installed="true"
         via="app"
         ver="$(app_version_of_path "$app_path")"
+      else
+        # 纯 CLI：brew 没有，但命令已在 PATH 里（手动安装）
+        bin_name="$(cli_bin_for_key "${ITEM_KEY[$i]}")"
+        if [[ -n "$bin_name" ]]; then
+          bin_path="$(command -v "$bin_name" 2>/dev/null || true)"
+          if [[ -n "$bin_path" && -x "$bin_path" ]]; then
+            bin_tgt="$(readlink "$bin_path" 2>/dev/null || true)"
+            case "$bin_tgt" in
+              *Caskroom*|*Cellar*) ;;
+              *)
+                installed="true"
+                via="bin"
+                ;;
+            esac
+          fi
+        fi
       fi
     fi
 
