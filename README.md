@@ -19,7 +19,7 @@ curl -fsSL https://raw.githubusercontent.com/ElevenZhou/ai-stack/main/ai-stack.s
 
 - [快速开始](#快速开始)
 - [它会做什么](#它会做什么)
-- [清单（46 项）](#清单46-项)
+- [清单（47 项）](#清单47-项)
 - [参数说明](#参数说明)
 - [典型场景](#典型场景)
 - [给 AI 助手用](#给-ai-助手用)
@@ -45,7 +45,7 @@ curl -fsSL https://cdn.jsdelivr.net/gh/ElevenZhou/ai-stack@main/ai-stack.sh -o ~
 bash ~/ai-stack.sh
 ```
 
-> jsDelivr 对 `@main` 有约 12 小时缓存，可能拿到旧版本。想立刻用最新版，改用 tag：`@v1.4.0`，或干脆用上面的 raw 地址。
+> jsDelivr 对 `@main` 有约 12 小时缓存，可能拿到旧版本。想立刻用最新版，改用 tag：`@v1.4.1`，或干脆用上面的 raw 地址。
 
 国内网络建议加 `--cn`（Homebrew 走清华镜像）：
 
@@ -126,7 +126,7 @@ bash ai-stack.sh --dry-run
 
 ---
 
-## 清单（46 项）
+## 清单（47 项）
 
 ### 基础工具链（8）
 
@@ -141,7 +141,7 @@ bash ai-stack.sh --dry-run
 | `ripgrep` | ripgrep（`rg`，代码搜索） | formula |
 | `fd` | fd（快速文件查找） | formula |
 
-### 桌面应用（18）
+### 桌面应用（19）
 
 | Key | 工具 | 说明 |
 |---|---|---|
@@ -163,6 +163,7 @@ bash ai-stack.sh --dry-run
 | `hermes-desktop` | Hermes Agent 桌面版 | |
 | `google-gemini` | Google Gemini 客户端 | Google Gemini 桌面版 |
 | `grok-bot` | Grok Bot 客户端 | xAI Grok Bot 桌面版 |
+| `opencode-desktop` | OpenCode 客户端 | 开源终端 Agent 的桌面版（CLI 是 `opencode`） |
 
 ### 命令行工具（6）
 
@@ -194,7 +195,7 @@ bash ai-stack.sh --dry-run
 | `orbstack` | OrbStack | Docker 替代 |
 | `chatbox` | Chatbox | 多模型聊天客户端 |
 
-默认运行会处理全部 46 项（包括推荐补充）。想跳过推荐补充，加 `--no-recommend`，只处理核心 32 项。
+默认运行会处理全部 47 项（包括推荐补充）。想跳过推荐补充，加 `--no-recommend`，只处理核心 33 项。
 
 ---
 
@@ -319,7 +320,7 @@ AI 不需要解析中文表格，直接读 JSON：
 ```json
 {
   "script": "ai-stack",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "macos": "26.6.2",
   "arch": "arm64",
   "host": "MacBook-Air.local",

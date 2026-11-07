@@ -22,7 +22,7 @@
 #
 set -o pipefail
 
-SCRIPT_VERSION="1.4.0"
+SCRIPT_VERSION="1.4.1"
 
 # ---------------------------------------------------------------------------
 # 默认参数
@@ -176,6 +176,7 @@ add_item apps github           "GitHub Desktop"                       cask githu
 add_item apps hermes-desktop   "Hermes Agent 桌面版"                   cask hermes-desktop
 add_item apps google-gemini    "Google Gemini 客户端"                  cask google-gemini
 add_item apps grok-bot         "Grok Bot 客户端"                       cask grok-bot
+add_item apps opencode-desktop "OpenCode 客户端"                       cask opencode-desktop
 
 # ---- 你点名的命令行工具 ---------------------------------------------------
 add_item cli codex            "Codex CLI（codex）"                     cask codex
@@ -528,6 +529,7 @@ app_name_for_key() {
     hermes-desktop)     printf 'Hermes.app' ;;
     google-gemini)      printf 'Gemini.app' ;;
     grok-bot)           printf 'Grok Bot.app' ;;
+    opencode-desktop)   printf 'OpenCode.app' ;;
     ollama-app)         printf 'Ollama.app' ;;
     lm-studio)          printf 'LM Studio.app' ;;
     cursor)             printf 'Cursor.app' ;;

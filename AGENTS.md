@@ -48,7 +48,7 @@
 ```json
 {
   "script": "ai-stack",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "macos": "26.6.2",
   "arch": "arm64",
   "host": "MacBook-Air.local",
@@ -95,7 +95,7 @@
 
 # 安装 / 更新
 ./ai-stack.sh                       # 全部 + 推荐项
-./ai-stack.sh --no-recommend        # 不处理 recommend，只装核心 32 项
+./ai-stack.sh --no-recommend        # 不处理 recommend，只装核心 33 项
 ./ai-stack.sh --only <keys>         # 逗号分隔，支持分组名
 ./ai-stack.sh --skip <keys>         # 逗号分隔，支持分组名
 ./ai-stack.sh --only apps           # 只处理 GUI
@@ -116,7 +116,7 @@
 
 `--only` / `--skip` 接受 **key 或 group 名**，可混用：`--only cli,cherry-studio`。
 
-默认不传筛选参数时会处理全部清单（当前 46 项）。
+默认不传筛选参数时会处理全部清单（当前 47 项）。
 `--only` 是白名单：只处理指定 key/分组；`--skip` 是黑名单：处理全部但排除指定 key/分组。
 如果同时使用，先按 `--only` 选中，再按 `--skip` 排除。
 
