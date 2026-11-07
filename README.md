@@ -45,7 +45,7 @@ curl -fsSL https://cdn.jsdelivr.net/gh/ElevenZhou/ai-stack@main/ai-stack.sh -o ~
 bash ~/ai-stack.sh
 ```
 
-> jsDelivr 对 `@main` 有约 12 小时缓存，可能拿到旧版本。想立刻用最新版，改用 tag：`@v1.1.2`，或干脆用上面的 raw 地址。
+> jsDelivr 对 `@main` 有约 12 小时缓存，可能拿到旧版本。想立刻用最新版，改用 tag：`@v1.2.0`，或干脆用上面的 raw 地址。
 
 国内网络建议加 `--cn`（Homebrew 走清华镜像）：
 
@@ -96,10 +96,12 @@ bash ai-stack.sh --dry-run
 
 | 当前状态 | 动作 | 结果标记 |
 |---|---|---|
-| 没装（brew 里查不到） | `brew install --cask --force` / `brew install` | `已安装` |
-| 已装 + brew 索引里有新版 | `brew upgrade` | `已更新` |
-| 已装 + 已是最新 | **跳过**，不做任何事 | `已是最新` |
-| 已装但无法判断（如 npm 条目） | 先查线上版本，相同则跳过，不同才装 | `已是最新` / `已更新` |
+| brew 已装 + 有新版 | `brew upgrade` | `已更新` |
+| brew 已装 + 已是最新 | **跳过**，不做任何事 | `已是最新` |
+| brew 已装 + App 文件被删了 | `brew install --cask --force` 补装 | `已安装` |
+| **手动装过同名 App**（brew 不认识） | **默认跳过**，只提示；`--adopt` 才接管 | `手动安装` |
+| brew 和 /Applications 都没有 | `brew install --cask --force` / `brew install` | `已安装` |
+| npm 条目 | 先查线上版本，相同则跳过，不同才装 | `已是最新` / `已更新` |
 | 主来源失败（如 Claude Code 的 cask） | 自动改用 fallback（npm） | `已安装` / `已更新` |
 
 判定顺序（脚本实际执行的步骤）：
@@ -107,14 +109,17 @@ bash ai-stack.sh --dry-run
 1. `brew update` 刷新本地索引（`--no-update` 或离线时跳过/失败则沿用旧索引）；
 2. 一次性执行 `brew outdated --cask --greedy` / `--formula` 得到「可更新」名单；
 3. 逐项比对名单：在名单里 → 升级，不在 → 视为已是最新并跳过；
-4. npm 类条目额外执行一次 `npm view <包> version` 对比，相同就跳过。
+4. 对 brew 里没有的 **GUI 条目**，再去 `/Applications` 和 `~/Applications` 里找同名 `.app`；
+5. npm 类条目额外执行一次 `npm view <包> version` 对比，相同就跳过。
 
 几个需要知道的边界：
 
 - **判定依据是 Homebrew 本地索引**。如果 `brew update` 失败（断网、镜像不可达），索引是旧的，可能把「其实有新版」误报成 `已是最新`。日志里会有 `brew update 失败` 的提示，重跑一次即可。
 - **自带自动更新的 App**（Chrome、VS Code、Cursor 等）默认靠 `--greedy` 判定；加了 `--no-greedy` 就会被当作已是最新而跳过，这是有意的省时选项。
-- **手动装过的同名 App**（不是 brew 装的）brew 查不到，会被视为「没装」，首次用 `--force` 接管一次；之后就走正常升级判断了。
-- `--dry-run` 会走同一套判断，只打印「将安装 / 将升级 / 已是最新」，不改系统。
+- **手动装过的同名 App 默认不会被覆盖**：脚本在 `/Applications` 里找到它，就标为 `手动安装，已跳过`，并打印它的版本和 Homebrew 上的最新版本供你判断。想纳入统一管理时加 `--adopt`，它会用 `brew install --cask --force` 接管一次（只替换 App 本体，`~/Library` 里的数据和登录状态不动），之后自动跟随升级。
+- **版本号不跨厂商可比**：例如飞书的 `CFBundleShortVersionString` 是 `147.0.7727.149`，而 cask 版本是 `8.4.7,...`。所以脚本不对手动安装的 App 自作主张判断新旧，只把两个版本号都显示出来。
+- `--dry-run` 会走同一套判断，只打印「将安装 / 将升级 / 已是最新 / 手动安装」，不改系统。
+
 
 
 ---
@@ -197,6 +202,8 @@ bash ai-stack.sh --dry-run
 | `--skip LIST` | 跳过指定条目或分组：`--skip qoder,antigravity-ide` |
 | `--no-recommend` | 不安装 `recommend` 分组（推荐补充） |
 | `--no-claude` | 跳过 Claude 桌面版 + Claude Code（网络受限时用，只影响安装/更新，不卸载） |
+| `--adopt` | 接管 `/Applications` 里手动安装的同名 App，交给 Homebrew 管理（默认只检测、跳过） |
+| `--no-adopt` | 显式保持「不接管」（默认行为） |
 | `--dry-run`, `-n` | 只预览，不改系统 |
 | `--list`, `-l` | 列出全部条目和 Key |
 | `--status` | 以 **JSON** 输出全部条目的安装状态（给脚本 / AI 读取） |
@@ -302,7 +309,7 @@ AI 不需要解析中文表格，直接读 JSON：
 ```json
 {
   "script": "ai-stack",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "macos": "26.6.2",
   "arch": "arm64",
   "host": "MacBook-Air.local",
@@ -335,8 +342,8 @@ AI 不需要解析中文表格，直接读 JSON：
 | `type` / `id` | 安装方式与 Homebrew/npm 标识 |
 | `fallback` | 主来源失败时的备用来源，如 `npm:@anthropic-ai/claude-code` |
 | `selected` | 本次参数下是否会被处理 |
-| `installed` | 是否已安装（含 npm 兜底） |
-| `via` | 实际来源：`cask` / `formula` / `npm` |
+| `installed` | 是否已安装（brew / npm 兜底 / 手动安装的 App 都算） |
+| `via` | 实际来源：`cask` / `formula` / `npm` / `app`（手动安装，未被 brew 管理） |
 | `version` | 已安装版本，未装为空 |
 
 ### 3. 直接对 AI 说的话
@@ -404,7 +411,24 @@ ps -Ao pid,command | grep "Clash Verge.app/Contents/MacOS"
 
 ### 4. 我已经手动装过某个 App，会被覆盖吗？
 
-会。对不由 Homebrew 管理的同名 App，脚本用 `brew install --cask --force` 接管，覆盖的是 `/Applications` 里的 App 本体。你的登录状态、配置、聊天记录在 `~/Library`，不受影响。
+**不会。** 脚本会先查 `/Applications` 和 `~/Applications`：如果找到同名 `.app`、但它不是 Homebrew 装的，就标为 `手动安装，已跳过`，并打印：
+
+```
+已手动安装：/Applications/Qoder.app（版本 0.5.2）
+Homebrew 最新：0.5.6
+未被 Homebrew 管理，本次跳过；想让它自动更新请加 --adopt。
+```
+
+想让它以后自动跟随升级，加 `--adopt` 接管一次：
+
+```bash
+./ai-stack.sh --adopt --only qoder
+```
+
+接管时用 `brew install --cask --force`，替换的是 `/Applications` 里的 App 本体；登录状态、配置、聊天记录在 `~/Library`，不受影响。
+
+注意：手动安装的 App 版本号格式不一定和 cask 一致（飞书 cask 是 `8.4.7,...`，App 内是 `147.0.7727.149`），所以脚本只**展示**两个版本号，不自动判断新旧。
+
 
 ### 5. Qoder / Trae / WorkBuddy 国际版和国内版
 

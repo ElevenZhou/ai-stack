@@ -48,7 +48,7 @@
 ```json
 {
   "script": "ai-stack",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "macos": "26.6.2",
   "arch": "arm64",
   "host": "MacBook-Air.local",
@@ -70,14 +70,15 @@
 | `fallback` | string | 备用来源，当前仅 `npm:<包名>` 或空 |
 | `note` | string | 备注（有时含「替代方案」） |
 | `selected` | boolean | 本次参数下是否会被处理 |
-| `installed` | boolean | 是否已安装（**含 fallback 命中**） |
-| `via` | string | 实际来源：`formula` / `cask` / `npm` / `""` |
+| `installed` | boolean | 是否已安装（含 fallback 与 /Applications 手动安装） |
+| `via` | string | 实际来源：`formula` / `cask` / `npm` / `app`（手动安装）/ `""` |
 | `version` | string | 已装版本；未装为 `""` |
 
 **判定规则（重要）：**
 
 - 想知道「还缺什么」→ 过滤 `installed == false`。
 - 想知道「哪些会被这次运行处理」→ 过滤 `selected == true`。
+- `installed == true && via == "app"` 表示是手动安装的 App（brew 不认识），AI 不应直接删除或重装；需要统一管理时先征得用户同意，再用 `--adopt`。
 - `installed == true && via == "npm"` 说明该 CLI 走的是备用来源，**不要再让它走 cask**，否则会重复超时。
 - 不要根据 `label` 或 `note` 做逻辑判断，只认 `key` / `id`。
 
@@ -105,6 +106,7 @@
 ./ai-stack.sh --cn                  # Homebrew 走清华 TUNA 镜像
 ./ai-stack.sh --proxy http://127.0.0.1:7890
 ./ai-stack.sh --no-claude           # 跳过 Claude 桌面版 + Claude Code（不卸载）
+./ai-stack.sh --adopt               # 接管 /Applications 里手动安装的同名 App
 ./ai-stack.sh --no-update           # 跳过 brew update，更快
 ./ai-stack.sh --no-greedy           # 不强制升级自带自动更新的 App
 
@@ -204,6 +206,7 @@ pgrep -fl "<AppName>"                             # 是否正在运行
 ### 必须先问用户
 
 - 运行**全量** `./ai-stack.sh`（会改动几十个 App）
+- 用 `--adopt` 接管/覆盖用户手动安装的 App
 - `brew uninstall` / `npm uninstall -g` / 删除 `~/Library` 下的数据
 - 修改 `/etc/hosts`、系统代理、DNS
 - `sudo` 开头的一切
@@ -222,7 +225,10 @@ pgrep -fl "<AppName>"                             # 是否正在运行
 ## 6. 常见判断
 
 **Q: `installed: false` 但用户说「我装过」？**
-A: 可能装在非标准位置（如 `~/Applications`、手动拖入）。`brew` 不认识 → 视为未装。此时 `--only <key>` 会用 `--force` 接管，覆盖 `/Applications` 里的 App 本体，但 `~/Library` 配置不动。
+A: 先看 `via`。若为 `"app"`，说明脚本已在 `/Applications` 或 `~/Applications` 里找到同名 App（手动安装、未被 brew 管理），这是正常状态，执行安装时会**跳过并提示**。若 `installed` 仍是 `false`，可能装在非标准路径或其他用户目录，此时 `--only <key>` 会用 `--force` 安装一份到 `/Applications`。
+
+**Q: 手动安装的 App 怎么让它自动更新？**
+A: 默认不接管（避免覆盖用户手动装的版本）。征得用户同意后执行 `./ai-stack.sh --adopt --only <key>`，接管一次后 `via` 会变成 `cask`，以后正常跟随升级。
 
 **Q: `via: "npm"` 是什么？**
 A: 该 CLI 的主来源（cask）不可达，脚本走了 `fallback`。这是**正常状态**，不要「修」它。强行改回 cask 只会再次超时。

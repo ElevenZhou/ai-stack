@@ -22,7 +22,7 @@
 #
 set -o pipefail
 
-SCRIPT_VERSION="1.1.2"
+SCRIPT_VERSION="1.2.0"
 
 # ---------------------------------------------------------------------------
 # 默认参数
@@ -36,6 +36,7 @@ NO_RECOMMEND=0
 NO_CLAUDE=0
 DO_CLEANUP=0
 USE_CN=0
+ADOPT=0
 PROXY=""
 ONLY=""
 SKIP=""
@@ -86,6 +87,8 @@ AI 工具栈 · macOS 一键安装 / 更新
                      例：--skip qoder,antigravity-ide
   --no-recommend     不安装“推荐补充”分组
   --no-claude        跳过 Claude 桌面版和 Claude Code（网络受限时用）
+  --adopt            接管 /Applications 里手动安装的同名 App，交给 Homebrew 管理
+  --no-adopt         只检测手动安装的 App 并跳过，不接管（默认）
   --dry-run, -n      只预览，不修改系统
   --list, -l         列出全部条目后退出
   --status           以 JSON 输出所有工具的安装状态（给脚本/AI 读取）
@@ -108,6 +111,7 @@ AI 工具栈 · macOS 一键安装 / 更新
   ./ai-stack.sh --no-recommend
   ./ai-stack.sh --only chatgpt,codex --proxy http://127.0.0.1:7890
   ./ai-stack.sh --no-claude
+  ./ai-stack.sh --adopt --only chatgpt,zed
   ./ai-stack.sh --skip trae-cn,workbuddy-cn
   ./ai-stack.sh --dry-run --only recommend
 
@@ -216,6 +220,8 @@ while [[ $# -gt 0 ]]; do
     --recommend)    NO_RECOMMEND=0; shift ;;
     --no-claude)    NO_CLAUDE=1; shift ;;
     --claude)       NO_CLAUDE=0; shift ;;
+    --adopt)        ADOPT=1; shift ;;
+    --no-adopt)     ADOPT=0; shift ;;
     --dry-run|-n)   DRY_RUN=1; shift ;;
     --list|-l)      LIST_ONLY=1; shift ;;
     --status)       STATUS_ONLY=1; shift ;;
@@ -497,14 +503,91 @@ is_outdated_formula() {
 }
 
 # ---------------------------------------------------------------------------
+# 应用清单检测（不依赖 Homebrew 的账本）
+#   App 可能来自手动拖入、pkg、App Store —— brew 完全不知道它们存在。
+# ---------------------------------------------------------------------------
+app_name_for_key() {
+  case "$1" in
+    chatgpt)            printf 'ChatGPT.app' ;;
+    claude)             printf 'Claude.app' ;;
+    antigravity)        printf 'Antigravity.app' ;;
+    antigravity-ide)    printf 'Antigravity IDE.app' ;;
+    workbuddy-cn)       printf 'WorkBuddy.app' ;;
+    trae-cn)            printf 'Trae CN.app' ;;
+    qoder)              printf 'Qoder.app' ;;
+    doubao)             printf 'Doubao.app' ;;
+    clash-verge-rev)    printf 'Clash Verge.app' ;;
+    cc-switch)          printf 'CC Switch.app' ;;
+    feishu)             printf 'Feishu.app' ;;
+    google-chrome)      printf 'Google Chrome.app' ;;
+    cherry-studio)      printf 'Cherry Studio.app' ;;
+    deepseek-harness)   printf 'DeepSeek Harness.app' ;;
+    github)             printf 'GitHub Desktop.app' ;;
+    hermes-desktop)     printf 'Hermes.app' ;;
+    ollama-app)         printf 'Ollama.app' ;;
+    lm-studio)          printf 'LM Studio.app' ;;
+    cursor)             printf 'Cursor.app' ;;
+    visual-studio-code) printf 'Visual Studio Code.app' ;;
+    zed)                printf 'Zed.app' ;;
+    ghostty)            printf 'Ghostty.app' ;;
+    orbstack)           printf 'OrbStack.app' ;;
+    chatbox)            printf 'Chatbox.app' ;;
+    *)                  printf '' ;;
+  esac
+}
+
+app_path_by_name() {
+  local name="$1" d
+  [[ -n "$name" ]] || return 1
+  for d in "/Applications" "$HOME/Applications"; do
+    [[ -d "$d/$name" ]] && { printf '%s' "$d/$name"; return 0; }
+  done
+  return 1
+}
+
+app_version_of_path() {
+  local plist="$1/Contents/Info.plist"
+  [[ -f "$plist" ]] || return 0
+  /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist" 2>/dev/null \
+    || defaults read "$1/Contents/Info" CFBundleShortVersionString 2>/dev/null \
+    || true
+}
+
+cask_latest_version() {
+  [[ -n "$BREW" ]] || return 0
+  "$BREW" info --cask --json=v2 "$1" 2>/dev/null \
+    | plutil -extract casks.0.version raw -o - - 2>/dev/null \
+    | head -1
+}
+
+# ---------------------------------------------------------------------------
 # 单项处理
 # ---------------------------------------------------------------------------
 process_cask() {
   local token="$1"
+  local app_name="${2:-}"
   local greedy_arg="--greedy"
+  local existing="" app_ver="" cask_ver=""
   [[ "$NO_GREEDY" -eq 1 ]] && greedy_arg=""
 
   if "$BREW" list --cask "$token" >/dev/null 2>&1; then
+    # brew 认为装了，但 App 文件被手动删掉 → 补装回来
+    if [[ -n "$app_name" ]] && ! app_path_by_name "$app_name" >/dev/null 2>&1; then
+      if [[ "$DRY_RUN" -eq 1 ]]; then
+        info "App 文件缺失，将重装：brew install --cask --force $token"
+        RESULT_STATUS="dry"
+      else
+        info "App 文件缺失，重装 $token …"
+        if "$BREW" install --cask --force "$token"; then
+          RESULT_STATUS="installed"
+        else
+          RESULT_STATUS="failed"
+          return 1
+        fi
+      fi
+      return 0
+    fi
+
     if is_outdated_cask "$token"; then
       if [[ "$DRY_RUN" -eq 1 ]]; then
         info "将升级：brew upgrade --cask $greedy_arg $token"
@@ -522,18 +605,49 @@ process_cask() {
     else
       RESULT_STATUS="current"
     fi
-  else
-    if [[ "$DRY_RUN" -eq 1 ]]; then
-      info "将安装：brew install --cask --force $token"
-      RESULT_STATUS="dry"
-    else
-      info "安装 $token …"
-      if "$BREW" install --cask --force "$token"; then
-        RESULT_STATUS="installed"
+    return 0
+  fi
+
+  # ---- 以下：brew 账本里没有，先看 /Applications 里有没有手动安装的同名 App ----
+  existing="$(app_path_by_name "$app_name" 2>/dev/null || true)"
+  if [[ -n "$existing" ]]; then
+    app_ver="$(app_version_of_path "$existing")"
+    cask_ver="$(cask_latest_version "$token")"
+
+    if [[ "$ADOPT" -eq 1 ]]; then
+      if [[ "$DRY_RUN" -eq 1 ]]; then
+        info "发现手动安装：$existing${app_ver:+（版本 ${app_ver}）}"
+        info "将用 Homebrew 接管${cask_ver:+（Homebrew 最新 ${cask_ver}）}：brew install --cask --force $token"
+        RESULT_STATUS="dry"
       else
-        RESULT_STATUS="failed"
-        return 1
+        info "用 Homebrew 接管手动安装的 $token …"
+        if "$BREW" install --cask --force "$token"; then
+          RESULT_STATUS="installed"
+        else
+          RESULT_STATUS="failed"
+          return 1
+        fi
       fi
+      return 0
+    fi
+
+    printf '  已手动安装：%s%s\n' "$existing" "${app_ver:+（版本 ${app_ver}）}"
+    [[ -n "$cask_ver" ]] && printf '  Homebrew 最新：%s\n' "$cask_ver"
+    info "未被 Homebrew 管理，本次跳过；想让它自动更新请加 --adopt。"
+    RESULT_STATUS="manual"
+    return 0
+  fi
+
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    info "将安装：brew install --cask --force $token"
+    RESULT_STATUS="dry"
+  else
+    info "安装 $token …"
+    if "$BREW" install --cask --force "$token"; then
+      RESULT_STATUS="installed"
+    else
+      RESULT_STATUS="failed"
+      return 1
     fi
   fi
   return 0
@@ -690,7 +804,7 @@ run_item() {
     RESULT_STATUS="dry"
   else
     case "$type" in
-      cask)    process_cask "$id" "$before" ;;
+      cask)    process_cask "$id" "$(app_name_for_key "$key")" ;;
       formula) process_formula "$id" "$before" ;;
       npm)     process_npm "$id" "$before" ;;
       *)
@@ -722,6 +836,13 @@ run_item() {
   fi
   [[ -z "$after" && -n "$before" ]] && after="$before"
 
+  # 手动安装的 App：版本从 Info.plist 读，brew 账本里没有
+  if [[ "$RESULT_STATUS" == "manual" && -z "$after" ]]; then
+    local _mp
+    _mp="$(app_path_by_name "$(app_name_for_key "$key")" 2>/dev/null || true)"
+    [[ -n "$_mp" ]] && after="$(app_version_of_path "$_mp")"
+  fi
+
   case "$RESULT_STATUS" in
     installed)
       ok "已安装${after:+  $after}"
@@ -731,6 +852,9 @@ run_item() {
       ;;
     current)
       printf '  %s● 已是最新%s%s\n' "$C_GREEN" "$C_RESET" "${after:+  $after}"
+      ;;
+    manual)
+      printf '  %s● 手动安装，已跳过%s%s\n' "$C_YELLOW" "$C_RESET" "${after:+  $after}"
       ;;
     dry)
       printf '  %s- 预演，未执行%s\n' "$C_YELLOW" "$C_RESET"
@@ -772,6 +896,10 @@ print_summary() {
   printf '  %s✓ 新安装%s      %d 项\n' "$C_GREEN" "$C_RESET" "$(count_status installed)"
   printf '  %s↑ 已更新%s      %d 项\n' "$C_GREEN" "$C_RESET" "$(count_status updated)"
   printf '  %s● 已是最新%s    %d 项\n' "$C_GREEN" "$C_RESET" "$(count_status current)"
+  if [[ "$(count_status manual)" -gt 0 ]]; then
+    printf '  %s● 手动安装%s    %d 项  %s(未托管，跳过；加 --adopt 接管)%s\n' \
+      "$C_YELLOW" "$C_RESET" "$(count_status manual)" "$C_DIM" "$C_RESET"
+  fi
   if [[ "$DRY_RUN" -eq 1 ]]; then
     printf '  %s- 预演%s        %d 项\n' "$C_YELLOW" "$C_RESET" "$(count_status dry)"
   fi
@@ -817,7 +945,7 @@ json_quote() {
 }
 
 print_status_json() {
-  local i first=1 sel installed ver via
+  local i first=1 sel installed ver via app_path
   local have_brew="false"
   [[ -n "$BREW" ]] && have_brew="true"
 
@@ -864,6 +992,16 @@ print_status_json() {
           fi
           ;;
       esac
+    fi
+
+    # 都没找到：再看 /Applications 里是否有手动安装的同名 App
+    if [[ "$installed" != "true" && "${ITEM_TYPE[$i]}" == "cask" ]]; then
+      app_path="$(app_path_by_name "$(app_name_for_key "${ITEM_KEY[$i]}")" 2>/dev/null || true)"
+      if [[ -n "$app_path" ]]; then
+        installed="true"
+        via="app"
+        ver="$(app_version_of_path "$app_path")"
+      fi
     fi
 
     printf '{"key":"%s","group":"%s","label":"%s","type":"%s","id":"%s","fallback":"%s","note":"%s","selected":%s,"installed":%s,"via":"%s","version":"%s"}' \
@@ -920,6 +1058,9 @@ if [[ "$NO_RECOMMEND" -eq 1 ]]; then
 fi
 if [[ "$NO_CLAUDE" -eq 1 ]]; then
   printf '跳过 Claude 桌面版和 Claude Code。\n'
+fi
+if [[ "$ADOPT" -eq 1 ]]; then
+  printf '接管模式：/Applications 里手动安装的同名 App 会交给 Homebrew 管理。\n'
 fi
 
 # 代理
